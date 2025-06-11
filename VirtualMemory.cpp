@@ -170,7 +170,7 @@ void scan_tree(uint64_t currentFrame, uint64_t frames_in_tree[], uint64_t& num_f
 }
 
 
-void update_evict_candidate(uint64_t frame, uint64_t page_to_insert,
+void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
                             uint64_t& max_distance, uint64_t& frame_to_evict,
                             uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent) {
     uint64_t page = get_page_number_from_frame(frame);
@@ -211,7 +211,7 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
         max_frame_index = std::max(max_frame_index, frame);
 
         // distance 
-        update_evict_candidate(frame, page_to_insert, max_distance, frame_to_evict, 
+        update_distance_for_evict(frame, page_to_insert, max_distance, frame_to_evict, 
             parent_frame_of_candidate, index_in_parent);
     }
 
