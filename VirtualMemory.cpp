@@ -1,9 +1,19 @@
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
 #include <algorithm>
+#include <iostream>
+
 
 
 #define LEVEL_BITS ((VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH) / TABLES_DEPTH)
+
+
+// Forward declarations
+uint64_t find_unused_frame_or_evict(uint64_t page_to_insert);
+std::pair<uint64_t, uint64_t> find_parent_and_index(uint64_t child_frame);
+bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int level, uint64_t index);
+uint64_t get_index_in_level(uint64_t virtualAddress, int level);
+
 
 
 uint64_t get_page_number(uint64_t virtualAddress) {
@@ -14,6 +24,18 @@ uint64_t get_page_number(uint64_t virtualAddress) {
 uint64_t get_offset(uint64_t virtualAddress) {
     return virtualAddress & ((1ULL << OFFSET_WIDTH) - 1);
 }
+
+
+void update_page_mapping(uint64_t frame, uint64_t page_number) {
+    PMwrite(frame, page_number);  // נכתוב לפריים 0, באופסט שהוא מספר הפריים
+}
+
+uint64_t get_page_mapping(uint64_t frame) {
+    word_t page_number = 0;
+    PMread(frame, &page_number);
+    return page_number;
+}
+
 
 
 //הערה לניר - בגלל שאסור משתנים גלובלים אז נראה שאין דרך יעילה יותר, גם לפי הג'יפיטי
@@ -41,6 +63,10 @@ bool traverse_tree(uint64_t virtualAddress, uint64_t& frame_found) {
     for (int level = 0; level < TABLES_DEPTH; ++level) {
         uint64_t index = get_index_in_level(virtualAddress, level);
         word_t nextFrame;
+        if (currentFrame >= NUM_FRAMES) {
+            return false; // או continue, תלוי בהקשר
+        }
+
         
         PMread(currentFrame * PAGE_SIZE + index, &nextFrame);
         
@@ -115,7 +141,7 @@ bool is_frame_in_use(uint64_t frame_to_check, uint64_t frames_in_tree[], uint64_
             word_t value;
             PMread(parent_frame * PAGE_SIZE + index, &value);
 
-            if (value == frame_to_check) {
+            if ((uint64_t) value == frame_to_check) {
                 return true;
             }
         }
@@ -126,34 +152,46 @@ bool is_frame_in_use(uint64_t frame_to_check, uint64_t frames_in_tree[], uint64_
 
 bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int level, uint64_t index) {
     uint64_t newFrame = find_unused_frame_or_evict(get_page_number(virtualAddress));
-    if (newFrame == 0)
-    {
+    if (newFrame == 0) {
         return false;
     }
-     
+
     if (level == TABLES_DEPTH - 1) {
         PMrestore(newFrame, get_page_number(virtualAddress));
+        update_page_mapping(newFrame, get_page_number(virtualAddress));
+
     } else {
         for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
             PMwrite(newFrame * PAGE_SIZE + i, 0);
         }
     }
-    
+
     PMwrite(currentFrame * PAGE_SIZE + index, newFrame);
     currentFrame = newFrame;
-        
+
     return true;
 }
 
 
+
 void scan_tree(uint64_t currentFrame, uint64_t frames_in_tree[], uint64_t& num_frames_in_tree) {
+    if (currentFrame >= NUM_FRAMES) {
+        return;  // פריים לא תקין, לא נסרוק אותו
+    }
+
     frames_in_tree[num_frames_in_tree++] = currentFrame;
 
     for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
         word_t value;
-        PMread(currentFrame * PAGE_SIZE + index, &value);
 
-        if (value != 0) {
+        uint64_t physicalAddress = currentFrame * PAGE_SIZE + index;
+        if (physicalAddress >= RAM_SIZE) {
+            continue;  // נזהר שלא לגשת לזיכרון פיזי לא חוקי
+        }
+
+        PMread(physicalAddress, &value);
+
+        if (value != 0 && value < NUM_FRAMES) {
             bool already_in_tree = false;
             for (uint64_t i = 0; i < num_frames_in_tree; ++i) {
                 if (frames_in_tree[i] == (uint64_t)value) {
@@ -168,6 +206,8 @@ void scan_tree(uint64_t currentFrame, uint64_t frames_in_tree[], uint64_t& num_f
         }
     }
 }
+
+
 
 
 void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
@@ -221,7 +261,10 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
     }
 
     // Evict
-    PMevict(frame_to_evict, get_page_number_from_frame(frame_to_evict));
+    uint64_t page_to_evict = get_page_mapping(frame_to_evict);
+    std::cerr << "Trying to evict frame " << frame_to_evict
+            << " with page " << page_to_evict << std::endl;
+    PMevict(frame_to_evict, page_to_evict);
     PMwrite(parent_frame_of_candidate * PAGE_SIZE + index_in_parent, 0);
 
     return frame_to_evict;
@@ -233,15 +276,15 @@ std::pair<uint64_t, uint64_t> find_parent_and_index(uint64_t child_frame) {
         for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
             word_t value;
             PMread(frame * PAGE_SIZE + index, &value);
-
-            if (value == child_frame) {
+            if ((uint64_t)value == child_frame) {
                 return {frame, index}; 
             }
         }
     }
-    
+
     return {0, 0}; 
 }
+
 
 
 
