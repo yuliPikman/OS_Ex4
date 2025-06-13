@@ -27,7 +27,8 @@ uint64_t get_offset(uint64_t virtualAddress) {
 
 
 void update_page_mapping(uint64_t frame, uint64_t page_number) {
-    PMwrite(frame, page_number);  // נכתוב לפריים 0, באופסט שהוא מספר הפריים
+    if (frame >= RAM_SIZE) return;
+    PMwrite(frame, page_number);
 }
 
 uint64_t get_page_mapping(uint64_t frame) {
@@ -63,13 +64,11 @@ bool traverse_tree(uint64_t virtualAddress, uint64_t& frame_found) {
     for (int level = 0; level < TABLES_DEPTH; ++level) {
         uint64_t index = get_index_in_level(virtualAddress, level);
         word_t nextFrame;
-        if (currentFrame >= NUM_FRAMES) {
-            return false; // או continue, תלוי בהקשר
-        }
-
         
-        PMread(currentFrame * PAGE_SIZE + index, &nextFrame);
-        
+        uint64_t addr = currentFrame * PAGE_SIZE + index;
+        if (addr >= RAM_SIZE) return false;
+        PMread(addr, &nextFrame);
+                
         if (nextFrame == 0) {
             if (!initialize_new_frame(currentFrame, virtualAddress, level, index)) {
                 return false;
@@ -108,9 +107,13 @@ int VMread(uint64_t virtualAddress, word_t* value) {
     if(!traverse_tree(virtualAddress, foundFrame)) {
         return 0;
     }
-    
+    if (foundFrame >= NUM_FRAMES) {
+        return 0;
+    }
     uint64_t offset = get_offset(virtualAddress);
-    PMread(foundFrame * PAGE_SIZE + offset, value);
+    uint64_t addr = foundFrame * PAGE_SIZE + offset;
+    if (addr >= RAM_SIZE) return 0;
+    PMread(addr, value);
 
     return 1;
 }
@@ -127,7 +130,9 @@ int VMwrite(uint64_t virtualAddress, word_t value) {
     }
     
     uint64_t offset = get_offset(virtualAddress);
-    PMwrite(foundFrame * PAGE_SIZE + offset, value);
+    uint64_t addr = foundFrame * PAGE_SIZE + offset;
+    if (addr >= RAM_SIZE) return 0;
+    PMwrite(addr, value);
     
     return 1;
 }
@@ -139,7 +144,13 @@ bool is_frame_in_use(uint64_t frame_to_check, uint64_t frames_in_tree[], uint64_
 
         for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
             word_t value;
-            PMread(parent_frame * PAGE_SIZE + index, &value);
+            if (parent_frame >= NUM_FRAMES) {
+                return false;
+            }
+            uint64_t addr = parent_frame * PAGE_SIZE + index;
+            if (addr >= RAM_SIZE) return false;
+            PMread(addr, &value);
+
 
             if ((uint64_t) value == frame_to_check) {
                 return true;
@@ -162,11 +173,15 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
 
     } else {
         for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-            PMwrite(newFrame * PAGE_SIZE + i, 0);
+            uint64_t addr = newFrame * PAGE_SIZE + i;
+            if (addr >= RAM_SIZE) return false;
+            PMwrite(addr, 0);
         }
     }
 
-    PMwrite(currentFrame * PAGE_SIZE + index, newFrame);
+    uint64_t addr = currentFrame * PAGE_SIZE + index;
+    if (addr >= RAM_SIZE) return false;
+    PMwrite(addr, newFrame);
     currentFrame = newFrame;
 
     return true;
@@ -273,9 +288,14 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
 
 std::pair<uint64_t, uint64_t> find_parent_and_index(uint64_t child_frame) {
     for (uint64_t frame = 0; frame < NUM_FRAMES; ++frame) {
+        if (frame >= NUM_FRAMES) {
+            break;
+        }
         for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
             word_t value;
-            PMread(frame * PAGE_SIZE + index, &value);
+            uint64_t addr = frame * PAGE_SIZE + index;
+            if (addr >= RAM_SIZE) continue; // או return {0, 0}; אם אתה רוצה לעצור
+            PMread(addr, &value);
             if ((uint64_t)value == child_frame) {
                 return {frame, index}; 
             }
