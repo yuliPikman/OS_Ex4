@@ -27,14 +27,25 @@ uint64_t get_offset(uint64_t virtualAddress) {
 
 
 void update_page_mapping(uint64_t frame, uint64_t page_number) {
-    if (frame >= RAM_SIZE) return;
-    PMwrite(frame, page_number);
+    PMwrite(frame * PAGE_SIZE, page_number);
 }
 
 uint64_t get_page_mapping(uint64_t frame) {
     word_t page_number = 0;
-    PMread(frame, &page_number);
+    PMread(frame * PAGE_SIZE, &page_number);
     return page_number;
+}
+
+bool is_leaf_frame(uint64_t frame) {
+    if (frame == 0) return false; // לא מפנים root
+    word_t value;
+    for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+        PMread(frame * PAGE_SIZE + i, &value);
+        if (value != 0 && value < NUM_FRAMES) {
+            return false;  // מצביע לפריים אחר → טבלת עמודים
+        }
+    }
+    return true;  // לא מצביע לכלום → עלה
 }
 
 
@@ -168,10 +179,14 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
     }
 
     if (level == TABLES_DEPTH - 1) {
-        PMrestore(newFrame, get_page_number(virtualAddress));
-        update_page_mapping(newFrame, get_page_number(virtualAddress));
+        // אנחנו מעלים עמוד מהדיסק
+        uint64_t page_number = get_page_number(virtualAddress);
+
+        // טוענים את תוכן העמוד מהדיסק לזיכרון
+        PMrestore(newFrame, page_number);
 
     } else {
+        // זה פריים של טבלת עמודים – נאתחל ל-0
         for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
             uint64_t addr = newFrame * PAGE_SIZE + i;
             if (addr >= RAM_SIZE) return false;
@@ -179,6 +194,7 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
         }
     }
 
+    // רושמים בטבלה שמצביעה לפריים החדש
     uint64_t addr = currentFrame * PAGE_SIZE + index;
     if (addr >= RAM_SIZE) return false;
     PMwrite(addr, newFrame);
@@ -186,6 +202,7 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
 
     return true;
 }
+
 
 
 
@@ -226,8 +243,12 @@ void scan_tree(uint64_t currentFrame, uint64_t frames_in_tree[], uint64_t& num_f
 
 
 void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
-                            uint64_t& max_distance, uint64_t& frame_to_evict,
-                            uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent) {
+                               uint64_t& max_distance, uint64_t& frame_to_evict,
+                               uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent) {
+    if (!is_leaf_frame(frame)) {
+        return;  // לא נרצה לפנות טבלאות עמודים
+    }
+
     uint64_t page = get_page_number_from_frame(frame);
 
     uint64_t diff = (page_to_insert > page) ? (page_to_insert - page) : (page - page_to_insert);
@@ -244,6 +265,7 @@ void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
 }
 
 
+
 uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
     uint64_t frame_to_evict = 0;
     uint64_t max_distance = 0;
@@ -255,35 +277,43 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
     uint64_t num_frames_in_tree = 0;
     scan_tree(0, frames_in_tree, num_frames_in_tree);
 
-    // Option 1
-    for (uint64_t frame = 1; frame < NUM_FRAMES; frame++) {
+    for (uint64_t frame = 1; frame < NUM_FRAMES; frame++) {  // שים לב: מ frame = 1
         bool in_use = is_frame_in_use(frame, frames_in_tree, num_frames_in_tree);
-
         if (!in_use) {
-            return frame;  
+            return frame;  // פריים פנוי
         }
 
         max_frame_index = std::max(max_frame_index, frame);
 
-        // distance 
-        update_distance_for_evict(frame, page_to_insert, max_distance, frame_to_evict, 
-            parent_frame_of_candidate, index_in_parent);
+        // רק אם זה עלה – מחשבים מרחק
+        if (is_leaf_frame(frame)) {
+            update_distance_for_evict(
+                frame, page_to_insert,
+                max_distance, frame_to_evict,
+                parent_frame_of_candidate, index_in_parent
+            );
+        }
     }
 
-    // Option 2
+    // אם יש מקום להקצות פריים חדש
     if (max_frame_index + 1 < NUM_FRAMES) {
         return max_frame_index + 1;
     }
 
-    // Evict
-    uint64_t page_to_evict = get_page_mapping(frame_to_evict);
-    std::cerr << "Trying to evict frame " << frame_to_evict
-            << " with page " << page_to_evict << std::endl;
-    PMevict(frame_to_evict, page_to_evict);
-    PMwrite(parent_frame_of_candidate * PAGE_SIZE + index_in_parent, 0);
+    // אם אין עלים שניתן לפנות – אסור לקרוא ל־PMevict
+    if (frame_to_evict == 0) {
+        return 0; // נכשלנו – אין מה לפנות
+    }
+
+    // שלב אחרון – מפנים פריים תקף
+    word_t evicted_page_number;
+    evicted_page_number = get_page_number_from_frame(frame_to_evict);
+    PMevict(frame_to_evict, evicted_page_number);
 
     return frame_to_evict;
 }
+
+
 
 
 std::pair<uint64_t, uint64_t> find_parent_and_index(uint64_t child_frame) {
