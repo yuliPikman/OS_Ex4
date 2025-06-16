@@ -204,26 +204,48 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
 }
 
 
+uint64_t get_page_number_from_frame_with_map(uint64_t frame, const uint64_t parent_of[]) {
+    uint64_t page_number = 0;
+    uint64_t current_frame = frame;
 
+    for (int level = TABLES_DEPTH - 1; level >= 0 && current_frame != 0; --level) {
+        uint64_t parent = parent_of[current_frame];
 
-void scan_tree(uint64_t currentFrame, uint64_t frames_in_tree[], uint64_t& num_frames_in_tree) {
-    if (currentFrame >= NUM_FRAMES) {
-        return;  // פריים לא תקין, לא נסרוק אותו
+        // סרוק את טבלת ההורה כדי למצוא באיזה אינדקס הוא מצביע ל־current_frame
+        word_t value;
+        for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
+            PMread(parent * PAGE_SIZE + index, &value);
+            if ((uint64_t)value == current_frame) {
+                page_number |= (index << (level * LEVEL_BITS));
+                break;
+            }
+        }
+
+        current_frame = parent;
     }
+
+    return page_number;
+}
+
+
+
+void scan_tree(uint64_t currentFrame,
+               uint64_t frames_in_tree[],
+               uint64_t& num_frames_in_tree,
+               uint64_t parent_of[])
+{
+    if (currentFrame >= NUM_FRAMES) return;
 
     frames_in_tree[num_frames_in_tree++] = currentFrame;
 
     for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
         word_t value;
-
         uint64_t physicalAddress = currentFrame * PAGE_SIZE + index;
-        if (physicalAddress >= RAM_SIZE) {
-            continue;  // נזהר שלא לגשת לזיכרון פיזי לא חוקי
-        }
+        if (physicalAddress >= RAM_SIZE) continue;
 
         PMread(physicalAddress, &value);
 
-        if (value != 0 && value < NUM_FRAMES) {
+        if (value != 0 && (uint64_t)value < NUM_FRAMES) {
             bool already_in_tree = false;
             for (uint64_t i = 0; i < num_frames_in_tree; ++i) {
                 if (frames_in_tree[i] == (uint64_t)value) {
@@ -233,11 +255,14 @@ void scan_tree(uint64_t currentFrame, uint64_t frames_in_tree[], uint64_t& num_f
             }
 
             if (!already_in_tree) {
-                scan_tree((uint64_t)value, frames_in_tree, num_frames_in_tree);
+                parent_of[(uint64_t)value] = currentFrame;
+                scan_tree((uint64_t)value, frames_in_tree, num_frames_in_tree, parent_of);
             }
         }
     }
 }
+
+
 
 
 
@@ -273,11 +298,16 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
     uint64_t index_in_parent = 0;
     uint64_t max_frame_index = 0;
 
+    // סריקת העץ
     uint64_t frames_in_tree[NUM_FRAMES];
+    uint64_t parent_of[NUM_FRAMES];
+    for (uint64_t i = 0; i < NUM_FRAMES; ++i) {
+        parent_of[i] = 0;
+    }
     uint64_t num_frames_in_tree = 0;
-    scan_tree(0, frames_in_tree, num_frames_in_tree);
+    scan_tree(0, frames_in_tree, num_frames_in_tree, parent_of);
 
-    for (uint64_t frame = 1; frame < NUM_FRAMES; frame++) {  // שים לב: מ frame = 1
+    for (uint64_t frame = 1; frame < NUM_FRAMES; frame++) {
         bool in_use = is_frame_in_use(frame, frames_in_tree, num_frames_in_tree);
         if (!in_use) {
             return frame;  // פריים פנוי
@@ -285,33 +315,49 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
 
         max_frame_index = std::max(max_frame_index, frame);
 
-        // רק אם זה עלה – מחשבים מרחק
         if (is_leaf_frame(frame)) {
-            update_distance_for_evict(
-                frame, page_to_insert,
-                max_distance, frame_to_evict,
-                parent_frame_of_candidate, index_in_parent
-            );
+            // נחשב את מספר העמוד בעזרת המפה
+            uint64_t page = get_page_number_from_frame_with_map(frame, parent_of);
+
+            uint64_t diff = (page_to_insert > page) ? (page_to_insert - page) : (page - page_to_insert);
+            uint64_t distance = (NUM_PAGES - diff < diff) ? (NUM_PAGES - diff) : diff;
+
+            if (distance > max_distance) {
+                max_distance = distance;
+                frame_to_evict = frame;
+
+                // נמצא את ההורה והאינדקס (כמו קודם)
+                for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
+                    word_t val;
+                    PMread(parent_of[frame] * PAGE_SIZE + index, &val);
+                    if ((uint64_t)val == frame) {
+                        parent_frame_of_candidate = parent_of[frame];
+                        index_in_parent = index;
+                        break;
+                    }
+                }
+            }
         }
     }
 
-    // אם יש מקום להקצות פריים חדש
+    // הקצאת פריים חדש אם אפשר
     if (max_frame_index + 1 < NUM_FRAMES) {
         return max_frame_index + 1;
     }
 
-    // אם אין עלים שניתן לפנות – אסור לקרוא ל־PMevict
+    // אם אין מועמד חוקי
     if (frame_to_evict == 0) {
-        return 0; // נכשלנו – אין מה לפנות
+        return 0;
     }
 
-    // שלב אחרון – מפנים פריים תקף
-    word_t evicted_page_number;
-    evicted_page_number = get_page_number_from_frame(frame_to_evict);
+    // פינוי
+    uint64_t evicted_page_number = get_page_number_from_frame_with_map(frame_to_evict, parent_of);
     PMevict(frame_to_evict, evicted_page_number);
+    PMwrite(parent_frame_of_candidate * PAGE_SIZE + index_in_parent, 0);
 
     return frame_to_evict;
 }
+
 
 
 
