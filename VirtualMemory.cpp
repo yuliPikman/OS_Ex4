@@ -313,7 +313,9 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
             return frame;  // פריים פנוי
         }
 
-        max_frame_index = std::max(max_frame_index, frame);
+        if (frame > max_frame_index) {
+            max_frame_index = frame;
+        }
 
         if (is_leaf_frame(frame)) {
             // נחשב את מספר העמוד בעזרת המפה
