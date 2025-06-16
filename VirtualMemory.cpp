@@ -70,28 +70,37 @@ uint64_t get_page_number_from_frame(uint64_t frame) {
 
 
 bool traverse_tree(uint64_t virtualAddress, uint64_t& frame_found) {
-    uint64_t currentFrame = 0; //root is 0
-    
+    uint64_t currentFrame = 0;
+
     for (int level = 0; level < TABLES_DEPTH; ++level) {
         uint64_t index = get_index_in_level(virtualAddress, level);
         word_t nextFrame;
-        
-        uint64_t addr = currentFrame * PAGE_SIZE + index;
-        if (addr >= RAM_SIZE) return false;
-        PMread(addr, &nextFrame);
-                
+        PMread(currentFrame * PAGE_SIZE + index, &nextFrame);
+
         if (nextFrame == 0) {
             if (!initialize_new_frame(currentFrame, virtualAddress, level, index)) {
                 return false;
             }
         } else {
+            PMwrite(currentFrame * PAGE_SIZE + index, nextFrame);
             currentFrame = nextFrame;
+
+            if (level == TABLES_DEPTH - 1) {
+                PMrestore(currentFrame, get_page_number(virtualAddress));
+                std::cerr << "[RESTORE] Restoring page "
+                          << get_page_number(virtualAddress)
+                          << " to frame " << currentFrame << std::endl;
+            }
         }
-    } 
+    }
 
     frame_found = currentFrame;
-    return true;  
+    return true;
 }
+
+
+
+
 
 
 void VMinitialize() {
@@ -124,6 +133,11 @@ int VMread(uint64_t virtualAddress, word_t* value) {
     uint64_t offset = get_offset(virtualAddress);
     uint64_t addr = foundFrame * PAGE_SIZE + offset;
     if (addr >= RAM_SIZE) return 0;
+    std::cerr << "[READ] virtualAddress=" << virtualAddress 
+          << " page=" << get_page_number(virtualAddress) 
+          << " foundFrame=" << foundFrame << std::endl;
+
+    
     PMread(addr, value);
 
     return 1;
@@ -178,32 +192,28 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
         return false;
     }
 
-    if (level == TABLES_DEPTH - 1) {
-        // אנחנו מעלים עמוד מהדיסק
-        uint64_t page_number = get_page_number(virtualAddress);
-        // 🟡 DEBUG
-        std::cerr << "[RESTORE] Restoring page " << page_number 
-              << " to frame " << newFrame << std::endl;
-        // טוענים את תוכן העמוד מהדיסק לזיכרון
-        PMrestore(newFrame, page_number);
-
-    } else {
-        // זה פריים של טבלת עמודים – נאתחל ל-0
-        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-            uint64_t addr = newFrame * PAGE_SIZE + i;
-            if (addr >= RAM_SIZE) return false;
-            PMwrite(addr, 0);
-        }
-    }
-
-    // רושמים בטבלה שמצביעה לפריים החדש
+    // עדכון תמידי של הקישור בטבלת האב
     uint64_t addr = currentFrame * PAGE_SIZE + index;
     if (addr >= RAM_SIZE) return false;
     PMwrite(addr, newFrame);
+
     currentFrame = newFrame;
+
+    if (level == TABLES_DEPTH - 1) {
+        uint64_t page_number = get_page_number(virtualAddress);
+        std::cerr << "[RESTORE] Restoring page " << page_number 
+                  << " to frame " << newFrame << std::endl;
+        PMrestore(newFrame, page_number);
+    } else {
+        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+            PMwrite(newFrame * PAGE_SIZE + i, 0);
+        }
+    }
 
     return true;
 }
+
+
 
 
 uint64_t get_page_number_from_frame_with_map(uint64_t frame, const uint64_t parent_of[]) {
