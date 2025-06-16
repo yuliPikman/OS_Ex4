@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
         word_t value;
         VMread(5 * i * PAGE_SIZE, &value);
         printf("reading from %llu %d\n", (long long int) i, value);
-        // assert(uint64_t(value) == i);
+        assert(uint64_t(value) == i);
     }
     printf("success\n");
 
