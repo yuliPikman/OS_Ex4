@@ -181,7 +181,9 @@ bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int l
     if (level == TABLES_DEPTH - 1) {
         // אנחנו מעלים עמוד מהדיסק
         uint64_t page_number = get_page_number(virtualAddress);
-
+        // 🟡 DEBUG
+        std::cerr << "[RESTORE] Restoring page " << page_number 
+              << " to frame " << newFrame << std::endl;
         // טוענים את תוכן העמוד מהדיסק לזיכרון
         PMrestore(newFrame, page_number);
 
@@ -354,6 +356,9 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
 
     // פינוי
     uint64_t evicted_page_number = get_page_number_from_frame_with_map(frame_to_evict, parent_of);
+    // 🟡 DEBUG
+    std::cerr << "[EVICT] Evicting page " << evicted_page_number 
+          << " from frame " << frame_to_evict << std::endl;
     PMevict(frame_to_evict, evicted_page_number);
     PMwrite(parent_frame_of_candidate * PAGE_SIZE + index_in_parent, 0);
 
