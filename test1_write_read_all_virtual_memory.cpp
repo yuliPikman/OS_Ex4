@@ -15,6 +15,7 @@ int main(int argc, char **argv) {
     for (uint64_t i = 0; i < VIRTUAL_MEMORY_SIZE; ++i) {
         word_t value;
         VMread(i, &value);
+        std::cout << "reading from " << i << " value: " << value << std::endl;
         assert(uint64_t(value) == i);
     }
 
