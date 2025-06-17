@@ -3,8 +3,8 @@
 
 
 struct EvictionCandidate {
-    uint64_t frame = 0;
-    uint64_t parent = 0;
+    uint64_t frame = -1;
+    uint64_t parent = -1;
     uint64_t index_in_parent = 0;
 };
 

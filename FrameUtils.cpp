@@ -1,5 +1,6 @@
 #include "FrameUtils.h"
 #include "TreeUtils.h"
+#include <iostream>
 
 
 
@@ -90,7 +91,7 @@ EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
             uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
             uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
 
-            if (distance > max_distance) {
+            if (distance >= max_distance) {
                 max_distance = distance;
                 candidate.frame = i;
                 candidate.parent = parent_of[i];
@@ -105,6 +106,16 @@ EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
                 }
             }
         }
+    }
+    
+    if (candidate.frame == 0) {
+        std::cout << "[DEBUG] find_best_frame_to_evict: candidate.frame == 0\n";
+    }
+    if (candidate.parent == 0) {
+        std::cout << "[DEBUG] find_best_frame_to_evict: candidate.parent == 0\n";
+    }
+    if (candidate.index_in_parent == 0) {
+        std::cout << "[DEBUG] find_best_frame_to_evict: candidate.index_in_parent == 0\n";
     }
 
     return candidate;

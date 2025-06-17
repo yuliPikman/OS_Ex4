@@ -27,13 +27,6 @@ int VMread(uint64_t virtualAddress, word_t* value) {
     }
     uint64_t offset = get_offset(virtualAddress);
     uint64_t addr = foundFrame * PAGE_SIZE + offset;
-    // std::cerr << "[VMread]  VA = " << virtualAddress
-    //       << ", page = " << get_page_number(virtualAddress)
-    //       << ", frame = " << foundFrame
-    //       << ", offset = " << offset
-    //       << ", addr = " << addr
-    //       << ", value = " << *value << std::endl;
-
     if (addr >= RAM_SIZE) return 0;
 
     
@@ -45,27 +38,28 @@ int VMread(uint64_t virtualAddress, word_t* value) {
 
 
 int VMwrite(uint64_t virtualAddress, word_t value) {
-    
     if (virtualAddress >= VIRTUAL_MEMORY_SIZE) {
-        return 0; 
-    }
-    
-    uint64_t foundFrame;
-    if(!traverse_tree(virtualAddress, foundFrame)) {
         return 0;
     }
-    
+
+    uint64_t foundFrame;
+    if (!traverse_tree(virtualAddress, foundFrame)) {
+        return 0;
+    }
+
+    if (foundFrame >= NUM_FRAMES) {
+        return 0;
+    }
+
     uint64_t offset = get_offset(virtualAddress);
     uint64_t addr = foundFrame * PAGE_SIZE + offset;
-    // std::cerr << "[VMwrite] VA = " << virtualAddress
-    //       << ", page = " << get_page_number(virtualAddress)
-    //       << ", frame = " << foundFrame
-    //       << ", offset = " << offset
-    //       << ", addr = " << addr
-    //       << ", value = " << value << std::endl;
 
     if (addr >= RAM_SIZE) return 0;
+
+    std::cout << "[VMwrite] frame: " << foundFrame << ", offset: " << offset
+              << ", value: " << value << ", addr: " << addr << std::endl;
+
     PMwrite(addr, value);
-    
+
     return 1;
 }

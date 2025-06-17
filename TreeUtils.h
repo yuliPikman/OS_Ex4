@@ -13,10 +13,10 @@ void reset_frame(uint64_t frame);
 
 
 bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
-                          int level, uint64_t index, uint64_t &nextFrame);
+                          int level, uint64_t index);
+
 
 bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found);
-
 
 
 void process_current_frame(uint64_t currentFrame,

@@ -12,23 +12,24 @@ void reset_frame(uint64_t frame) {
 
 
 bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
-                          int level, uint64_t index, uint64_t &nextFrame) {
+                          int level, uint64_t index) {
     uint64_t newFrame = find_unused_frame_or_evict(get_page_number(virtualAddress));
+    std::cout << "Allocated frame " << newFrame << " at level " << level << " for VA " << virtualAddress << std::endl;
+    
     if (newFrame == 0) {
         return false;
     }
 
+    reset_frame(newFrame);
+
     if (level == TABLES_DEPTH - 1) {
-        reset_frame(newFrame);  // לא חובה, אבל מונע ערכים ישנים
         PMrestore(newFrame, get_page_number(virtualAddress));
-    } else {
-        reset_frame(newFrame);
     }
 
     PMwrite(currentFrame * PAGE_SIZE + index, newFrame);
-    nextFrame = newFrame;
     return true;
 }
+
 
 
 bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found) {
@@ -41,9 +42,12 @@ bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found) {
         uint64_t nextFrame = static_cast<uint64_t>(nextFrameWord);
 
         if (nextFrame == 0) {
-            if (!handle_missing_entry(virtualAddress, currentFrame, level, index, nextFrame)) {
+            if (!handle_missing_entry(virtualAddress, currentFrame, level, index)) {
                 return false;
             }
+                // ⬇️ קרא מחדש את מה שהוקצה
+            PMread(currentFrame * PAGE_SIZE + index, &nextFrameWord);
+            nextFrame = static_cast<uint64_t>(nextFrameWord);
         }
         currentFrame = nextFrame;
     }
