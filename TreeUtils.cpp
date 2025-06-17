@@ -75,7 +75,7 @@ void scan_tree(uint64_t currentFrame,
                uint64_t parent_of[],
                uint64_t page_of[],
                uint64_t depth_of[],
-               uint64_t path = 0)
+               uint64_t path)
 {
     if (currentFrame >= NUM_FRAMES) return;
 
