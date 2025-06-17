@@ -12,9 +12,15 @@ void reset_frame(uint64_t frame) {
 
 
 bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
-                          int level, uint64_t index) {
-    uint64_t newFrame = find_unused_frame_or_evict(get_page_number(virtualAddress));
-    std::cout << "Allocated frame " << newFrame << " at level " << level << " for VA " << virtualAddress << std::endl;
+                          int level, uint64_t index,
+                          const uint64_t frames_in_tree[],
+                          uint64_t num_frames_in_tree,
+                          uint64_t parent_of[],
+                          const uint64_t page_of[],
+                          const uint64_t depth_of[]) {
+uint64_t newFrame = find_unused_frame_or_evict(get_page_number(virtualAddress),
+                                               frames_in_tree, num_frames_in_tree,
+                                               parent_of, page_of, depth_of);    std::cout << "Allocated frame " << newFrame << " at level " << level << " for VA " << virtualAddress << std::endl;
     
     if (newFrame == 0) {
         return false;
@@ -27,13 +33,21 @@ bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
     }
 
     PMwrite(currentFrame * PAGE_SIZE + index, newFrame);
+    parent_of[newFrame] = currentFrame; // ✅ קו קריטי להצלחת השחזור
     return true;
 }
 
 
 
 
-bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found) {
+bool traverse_tree(uint64_t virtualAddress,
+                   uint64_t &frame_found,
+                   uint64_t parent_of[],
+                   const uint64_t frames_in_tree[],
+                   uint64_t num_frames_in_tree,
+                   const uint64_t page_of[],
+                   const uint64_t depth_of[])
+ {
     uint64_t currentFrame = 0;
 
     for (int level = 0; level < TABLES_DEPTH; ++level) {
@@ -43,13 +57,16 @@ bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found) {
         uint64_t nextFrame = static_cast<uint64_t>(nextFrameWord);
 
         if (nextFrame == 0) {
-            if (!handle_missing_entry(virtualAddress, currentFrame, level, index)) {
-                return false;
-            }
-                // ⬇️ קרא מחדש את מה שהוקצה
+        if (!handle_missing_entry(virtualAddress, currentFrame, level, index,
+                                frames_in_tree, num_frames_in_tree,
+                                parent_of, page_of, depth_of)) {
+            return false;
+        }
+
             PMread(currentFrame * PAGE_SIZE + index, &nextFrameWord);
             nextFrame = static_cast<uint64_t>(nextFrameWord);
         }
+
         currentFrame = nextFrame;
     }
 
@@ -109,28 +126,8 @@ void scan_tree(uint64_t currentFrame,
 
 
 
-bool initialize_new_frame(uint64_t &currentFrame, uint64_t virtualAddress, int level, uint64_t index) {
-    uint64_t newFrame = find_unused_frame_or_evict(get_page_number(virtualAddress));
-    if (newFrame == 0) {
-        return false;
-    }
 
 
-    PMwrite(currentFrame * PAGE_SIZE + index, newFrame);
-
-    currentFrame = newFrame;
-
-    if (level == TABLES_DEPTH - 1) {
-        uint64_t page_number = get_page_number(virtualAddress);
-        PMrestore(newFrame, page_number);
-    } else {
-        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-            PMwrite(newFrame * PAGE_SIZE + i, 0);
-        }
-    }
-
-    return true;
-}
 
 
 

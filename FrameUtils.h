@@ -13,8 +13,12 @@ struct EvictionCandidate {
 bool is_leaf_frame(uint64_t frame);
 
 
-uint64_t find_unused_frame_or_evict(uint64_t page_to_insert);
-
+uint64_t find_unused_frame_or_evict(uint64_t page_to_insert,
+                                    const uint64_t frames_in_tree[],
+                                    uint64_t num_frames_in_tree,
+                                    const uint64_t parent_of[],
+                                    const uint64_t page_of[],
+                                    const uint64_t depth_of[]);
 
 int find_free_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree);
 

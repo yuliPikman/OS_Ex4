@@ -1,5 +1,6 @@
 #include "PageUtils.h"
 #include "TreeUtils.h"
+#include <iostream>
 
 uint64_t get_page_number(uint64_t virtualAddress) {
     return virtualAddress >> OFFSET_WIDTH;
@@ -46,12 +47,22 @@ uint64_t get_page_number_from_frame_with_map(uint64_t frame, const uint64_t pare
 
     for (int level = TABLES_DEPTH - 1; level >= 0; --level) {
         uint64_t parent = parent_of[current_frame];
+        std::cout << "[DEBUG] Level: " << level << ", Current Frame: " << current_frame
+                  << ", Parent: " << parent << std::endl;
         uint64_t index = get_index_in_parent(parent, current_frame);
-
+        
         if (index == PAGE_SIZE) {
-            // std::cerr << "[BUG] Could not find child frame " << current_frame
-            //           << " in parent " << parent << std::endl;
-            break; // fail-safe
+            std::cerr << "[BUG] get_page_number_from_frame_with_map: could not find frame "
+                      << current_frame << " in parent " << parent << std::endl;
+            return NUM_PAGES;  // ערך לא חוקי
+        }
+
+        word_t val;
+        PMread(parent * PAGE_SIZE + index, &val);
+        if ((uint64_t)val != current_frame) {
+            std::cerr << "[MISMATCH] parent_of[" << current_frame << "] = " << parent
+                      << ", but PMread(" << parent * PAGE_SIZE + index << ") = " << val
+                      << std::endl;
         }
 
         page_number |= (index << (level * LEVEL_BITS));
@@ -60,6 +71,8 @@ uint64_t get_page_number_from_frame_with_map(uint64_t frame, const uint64_t pare
 
     return page_number;
 }
+
+
 
 
 

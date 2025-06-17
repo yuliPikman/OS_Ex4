@@ -83,15 +83,20 @@ void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
     uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
     uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
 
+    std::cout << "Frame: " << frame << ", page: " << page << ", page_to_insert: " << page_to_insert
+              << ", diff: " << diff << ", distance: " << distance << ", max_distance: " << max_distance << std::endl;
+
     if (distance >= max_distance) {
         max_distance = distance;
         frame_to_evict = frame;
 
         parent_frame_of_candidate = parent_of[frame];
         index_in_parent = get_index_in_parent(parent_frame_of_candidate, frame);
+
+        std::cout << "Updated eviction candidate: frame_to_evict = " << frame_to_evict << std::endl;
     }
-    std::cout<< "Frame to evict in update_distance_for_evict (before) is now: " << frame_to_evict << std::endl;
 }
+
 
 
 
@@ -108,25 +113,25 @@ EvictionCandidate evict_best_frame(uint64_t page_to_insert,
 
     for (uint64_t i = 0; i < num_frames_in_tree; ++i) {
         uint64_t frame = frames_in_tree[i];
+        if (frame == 0) continue; // אסור לפנות את השורש
+
         if (depth_of[frame] == TABLES_DEPTH) {
             update_distance_for_evict(frame, page_to_insert,
                                       max_distance, frame_to_evict,
                                       parent_frame_of_candidate, index_in_parent,
                                       parent_of);
-        }
-        std::cout<< "Frame to evict in evict_best_frame (after) is now: " << frame_to_evict << std::endl;
-        if (frame_to_evict == 0) {
-            continue;  // לא מצאנו עדיין פריים לפינוי
+            std::cout << "Frame to evict in evict_best_frame (after): " << frame_to_evict << std::endl;
         }
     }
 
     if (frame_to_evict == 0) {
-        std::cerr << "[ERROR] No frame found for eviction!" << std::endl;
+        std::cerr << "[ERROR] No valid frame found for eviction!\n";
         exit(1);
     }
 
     return {frame_to_evict, parent_frame_of_candidate, index_in_parent};
 }
+
 
 
 

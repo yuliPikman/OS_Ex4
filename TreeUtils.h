@@ -11,13 +11,22 @@ struct Pair {
 void reset_frame(uint64_t frame);
 
 
-
 bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
-                          int level, uint64_t index);
+                          int level, uint64_t index,
+                          const uint64_t frames_in_tree[],
+                          uint64_t num_frames_in_tree,
+                          uint64_t parent_of[],
+                          const uint64_t page_of[],
+                          const uint64_t depth_of[]);
 
 
-bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found);
-
+bool traverse_tree(uint64_t virtualAddress,
+                   uint64_t &frame_found,
+                   uint64_t parent_of[],
+                   const uint64_t frames_in_tree[],
+                   uint64_t num_frames_in_tree,
+                   const uint64_t page_of[],
+                   const uint64_t depth_of[]);
 
 void process_current_frame(uint64_t currentFrame,
                            uint64_t depth,
