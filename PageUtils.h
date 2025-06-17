@@ -22,6 +22,8 @@ uint64_t get_page_mapping(uint64_t frame);
 uint64_t get_index_in_level(uint64_t virtualAddress, int level);
 
 
+uint64_t get_index_in_parent(uint64_t parent, uint64_t child);
+
 
 uint64_t get_page_number_from_frame_with_map(uint64_t frame, const uint64_t parent_of[]);
 

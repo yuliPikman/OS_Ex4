@@ -27,35 +27,40 @@ uint64_t get_index_in_level(uint64_t virtualAddress, int level) {
 
 
 
+uint64_t get_index_in_parent(uint64_t parent, uint64_t child) {
+    word_t value;
+    for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
+        PMread(parent * PAGE_SIZE + index, &value);
+        if ((uint64_t)value == child) {
+            return index;
+        }
+    }
+
+    // כישלון – לא נמצא (צריך לוודא שקלטים נכונים)
+    return PAGE_SIZE; // ערך בלתי אפשרי שמציין "לא נמצא"
+}
+
 uint64_t get_page_number_from_frame_with_map(uint64_t frame, const uint64_t parent_of[]) {
     uint64_t page_number = 0;
     uint64_t current_frame = frame;
 
     for (int level = TABLES_DEPTH - 1; level >= 0; --level) {
         uint64_t parent = parent_of[current_frame];
+        uint64_t index = get_index_in_parent(parent, current_frame);
 
-        word_t value;
-        bool found = false;
-        for (uint64_t index = 0; index < PAGE_SIZE; ++index) {
-            PMread(parent * PAGE_SIZE + index, &value);
-            if ((uint64_t)value == current_frame) {
-                page_number |= (index << (level * LEVEL_BITS));
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
+        if (index == PAGE_SIZE) {
             // std::cerr << "[BUG] Could not find child frame " << current_frame
             //           << " in parent " << parent << std::endl;
             break; // fail-safe
         }
 
+        page_number |= (index << (level * LEVEL_BITS));
         current_frame = parent;
     }
 
     return page_number;
 }
+
 
 
 

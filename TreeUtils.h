@@ -7,8 +7,25 @@ struct Pair {
     uint64_t second;
 };
 
+
+void reset_frame(uint64_t frame);
+
+
+
+bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
+                          int level, uint64_t index, uint64_t &nextFrame);
+
 bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found);
 
+
+
+void process_current_frame(uint64_t currentFrame,
+                           uint64_t depth,
+                           uint64_t frames_in_tree[],
+                           uint64_t &num_frames_in_tree,
+                           uint64_t page_of[],
+                           uint64_t depth_of[],
+                           uint64_t path);
 
 
 void scan_tree(uint64_t currentFrame,

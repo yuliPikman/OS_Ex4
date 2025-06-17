@@ -27,14 +27,19 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
 
     scan_tree(0, 0, frames_in_tree, num_frames_in_tree, parent_of, page_of, depth_of);
 
-    uint64_t max_distance = 0;
-    uint64_t frame_to_evict = 0;
-    uint64_t parent_frame_of_candidate = 0;
-    uint64_t index_in_parent = 0;
-    uint64_t max_frame_index = 0;
+    int free = find_free_frame(frames_in_tree, num_frames_in_tree);
+    if (free != 0) return free;
 
+    int next = find_next_unused_frame(frames_in_tree, num_frames_in_tree);
+    if (next != 0) return next;
+
+    return evict_best_frame(page_to_insert, frames_in_tree, num_frames_in_tree,
+                            parent_of, page_of, depth_of);
+}
+
+
+int find_free_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree) {
     for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
-        // בדוק אם הפריים בשימוש
         bool in_use = false;
         for (uint64_t j = 0; j < num_frames_in_tree; ++j) {
             if (frames_in_tree[j] == i) {
@@ -42,33 +47,59 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
                 break;
             }
         }
+        if (!in_use) return i;
+    }
+    return 0;
+}
 
-        if (!in_use) {
-            return i;  // פריים פנוי
+int find_next_unused_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree) {
+    uint64_t max_frame_index = 0;
+    for (uint64_t i = 0; i < num_frames_in_tree; ++i) {
+        if (frames_in_tree[i] > max_frame_index) {
+            max_frame_index = frames_in_tree[i];
         }
+    }
+    if (max_frame_index + 1 < NUM_FRAMES) {
+        return max_frame_index + 1;
+    }
+    return 0;
+}
 
-        if (i > max_frame_index) {
-            max_frame_index = i;
-        }
 
-        // נבדוק אם זה leaf
+uint64_t evict_best_frame(uint64_t page_to_insert,
+                          const uint64_t frames_in_tree[],
+                          uint64_t num_frames_in_tree,
+                          const uint64_t parent_of[],
+                          const uint64_t page_of[],
+                          const uint64_t depth_of[]) {
+    EvictionCandidate candidate = find_best_frame_to_evict(page_to_insert, parent_of, page_of, depth_of);
+    return perform_eviction(candidate, page_of);
+}
+
+
+EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
+                                           const uint64_t parent_of[],
+                                           const uint64_t page_of[],
+                                           const uint64_t depth_of[]) {
+    uint64_t max_distance = 0;
+    EvictionCandidate candidate;
+
+    for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
         if (depth_of[i] == TABLES_DEPTH) {
             uint64_t page = page_of[i];
             uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
-            uint64_t distance = (NUM_PAGES - diff < diff) ? (NUM_PAGES - diff) : diff;
+            uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
 
             if (distance > max_distance) {
                 max_distance = distance;
-                frame_to_evict = i;
+                candidate.frame = i;
+                candidate.parent = parent_of[i];
 
-                // מצא את האינדקס בטבלת האב
-                uint64_t parent = parent_of[i];
                 for (uint64_t j = 0; j < PAGE_SIZE; ++j) {
                     word_t val;
-                    PMread(parent * PAGE_SIZE + j, &val);
+                    PMread(candidate.parent * PAGE_SIZE + j, &val);
                     if ((uint64_t)val == i) {
-                        parent_frame_of_candidate = parent;
-                        index_in_parent = j;
+                        candidate.index_in_parent = j;
                         break;
                     }
                 }
@@ -76,21 +107,13 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
         }
     }
 
-    if (max_frame_index + 1 < NUM_FRAMES) {
-        return max_frame_index + 1;
-    }
-
-    if (frame_to_evict == 0) {
-        return 0;  // מקרה קצה
-    }
-
-    uint64_t evicted_page = page_of[frame_to_evict];
-    // std::cerr << "[EVICT] Evicting page " << evicted_page
-    //           << " from frame " << frame_to_evict << std::endl;
-
-    PMevict(frame_to_evict, evicted_page);
-    PMwrite(parent_frame_of_candidate * PAGE_SIZE + index_in_parent, 0);
-
-    return frame_to_evict;
+    return candidate;
 }
 
+uint64_t perform_eviction(const EvictionCandidate& candidate,
+                          const uint64_t page_of[]) {
+    if (candidate.frame == 0) return 0;
+    PMevict(candidate.frame, page_of[candidate.frame]);
+    PMwrite(candidate.parent * PAGE_SIZE + candidate.index_in_parent, 0);
+    return candidate.frame;
+}
