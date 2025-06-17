@@ -32,6 +32,7 @@ bool handle_missing_entry(uint64_t virtualAddress, uint64_t currentFrame,
 
 
 
+
 bool traverse_tree(uint64_t virtualAddress, uint64_t &frame_found) {
     uint64_t currentFrame = 0;
 
@@ -83,7 +84,13 @@ void scan_tree(uint64_t currentFrame,
 {
     if (currentFrame >= NUM_FRAMES) return;
 
-    process_current_frame(currentFrame, depth, frames_in_tree, num_frames_in_tree, page_of, depth_of, path);
+    frames_in_tree[num_frames_in_tree++] = currentFrame;
+    depth_of[currentFrame] = depth;
+
+    // רק דפי מידע מקבלים page mapping
+    if (depth == TABLES_DEPTH) {
+        page_of[currentFrame] = path;
+    }
 
     if (depth == TABLES_DEPTH) return;
 

@@ -83,7 +83,7 @@ EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
                                            const uint64_t page_of[],
                                            const uint64_t depth_of[]) {
     uint64_t max_distance = 0;
-    EvictionCandidate candidate;
+    EvictionCandidate candidate = {0, 0, 0};
 
     for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
         if (depth_of[i] == TABLES_DEPTH) {
@@ -91,32 +91,29 @@ EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
             uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
             uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
 
-            if (distance >= max_distance) {
+            if (distance > max_distance) {
                 max_distance = distance;
                 candidate.frame = i;
                 candidate.parent = parent_of[i];
-
-                for (uint64_t j = 0; j < PAGE_SIZE; ++j) {
-                    word_t val;
-                    PMread(candidate.parent * PAGE_SIZE + j, &val);
-                    if ((uint64_t)val == i) {
-                        candidate.index_in_parent = j;
-                        break;
-                    }
-                }
             }
         }
     }
-    
-    if (candidate.frame == 0) {
-        std::cout << "[DEBUG] find_best_frame_to_evict: candidate.frame == 0\n";
+
+    if (candidate.frame != 0 && candidate.parent != 0) {
+        for (uint64_t j = 0; j < PAGE_SIZE; ++j) {
+            word_t val;
+            PMread(candidate.parent * PAGE_SIZE + j, &val);
+            if ((uint64_t)val == candidate.frame) {
+                candidate.index_in_parent = j;
+                break;
+            }
+        }
     }
-    if (candidate.parent == 0) {
-        std::cout << "[DEBUG] find_best_frame_to_evict: candidate.parent == 0\n";
-    }
-    if (candidate.index_in_parent == 0) {
-        std::cout << "[DEBUG] find_best_frame_to_evict: candidate.index_in_parent == 0\n";
-    }
+
+    // Debug prints:
+    if (candidate.frame == 0) std::cout << "[DEBUG] candidate.frame == 0\n";
+    if (candidate.parent == 0) std::cout << "[DEBUG] candidate.parent == 0\n";
+    if (candidate.index_in_parent == 0) std::cout << "[DEBUG] candidate.index_in_parent == 0\n";
 
     return candidate;
 }
