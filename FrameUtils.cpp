@@ -109,11 +109,7 @@ EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
             }
         }
     }
-
-    // Debug prints:
-    if (candidate.frame == 0) std::cout << "[DEBUG] candidate.frame == 0\n";
-    // if (candidate.parent == 0) std::cout << "[DEBUG] candidate.parent == 0\n";
-    // if (candidate.index_in_parent == 0) std::cout << "[DEBUG] candidate.index_in_parent == 0\n";
+    
 
     return candidate;
 }
