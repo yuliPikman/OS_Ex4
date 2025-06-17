@@ -67,15 +67,57 @@ int find_next_unused_frame(const uint64_t frames_in_tree[], uint64_t num_frames_
 }
 
 
-uint64_t evict_best_frame(uint64_t page_to_insert,
-                          const uint64_t frames_in_tree[],
-                          uint64_t num_frames_in_tree,
-                          const uint64_t parent_of[],
-                          const uint64_t page_of[],
-                          const uint64_t depth_of[]) {
-    EvictionCandidate candidate = find_best_frame_to_evict(page_to_insert, parent_of, page_of, depth_of);
-    return perform_eviction(candidate, page_of);
+
+
+
+
+void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
+                            uint64_t& max_distance, uint64_t& frame_to_evict,
+                            uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent) {
+    uint64_t page = get_page_number_from_frame_with_map(frame);
+
+    uint64_t diff = (page_to_insert > page) ? (page_to_insert - page) : (page - page_to_insert);
+    uint64_t distance = (NUM_PAGES - diff < diff) ? (NUM_PAGES - diff) : diff;
+
+    if (distance > max_distance) {
+        max_distance = distance;
+        frame_to_evict = frame;
+
+        auto parent_index = find_parent_and_index(frame);
+        parent_frame_of_candidate = parent_index.first;
+        index_in_parent = parent_index.second;
+    }
 }
+
+EvictionCandidate evict_best_frame(uint64_t page_to_insert,
+                                   const uint64_t depth_of[]) {
+    uint64_t max_distance = 0;
+    uint64_t frame_to_evict = 0;
+    uint64_t parent_frame_of_candidate = 0;
+    uint64_t index_in_parent = 0;
+
+    for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
+        if (depth_of[i] == TABLES_DEPTH) {  // רק עלים
+            update_distance_for_evict(i, page_to_insert,
+                                      max_distance, frame_to_evict,
+                                      parent_frame_of_candidate, index_in_parent);
+        }
+    }
+
+    if (frame_to_evict == 0 || parent_frame_of_candidate == 0) {
+        std::cerr << "[ERROR] No frame found for eviction!" << std::endl;
+        exit(1);  // או טיפול תקני אחר
+    }
+
+    EvictionCandidate candidate = {
+        frame_to_evict,
+        parent_frame_of_candidate,
+        index_in_parent
+    };
+
+    return candidate;
+}
+
 
 
 EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
