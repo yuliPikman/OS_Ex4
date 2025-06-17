@@ -20,28 +20,34 @@ bool is_leaf_frame(uint64_t frame) {
 
 
 
-uint64_t find_unused_frame_or_evict(
-    uint64_t page_to_insert,
-    const uint64_t frames_in_tree[],
-    uint64_t num_frames_in_tree,
-    const uint64_t parent_of[],
-    const uint64_t page_of[],
-    const uint64_t depth_of[]) 
-{
+uint64_t find_unused_frame_or_evict(uint64_t page_to_insert,
+                                    const uint64_t frames_in_tree[],
+                                    uint64_t num_frames_in_tree,
+                                    const uint64_t parent_of[],
+                                    const uint64_t page_of[],
+                                    const uint64_t depth_of[]) {
+    // ננסה קודם למצוא מסגרת פנויה
     int free = find_free_frame(frames_in_tree, num_frames_in_tree);
     if (free != 0) return free;
 
+    // אם אין, ננסה למצוא מסגרת לא בשימוש בטבלאות (אך לא בהכרח ריקה)
     int next = find_next_unused_frame(frames_in_tree, num_frames_in_tree);
     if (next != 0) return next;
 
+    // אם אין, נדרש לפנות מסגרת
     EvictionCandidate candidate = evict_best_frame(page_to_insert,
                                                    frames_in_tree,
                                                    num_frames_in_tree,
                                                    parent_of,
                                                    page_of,
                                                    depth_of);
-    return candidate.frame;
+
+    uint64_t frame = perform_eviction(candidate, page_of);
+    reset_frame(frame);  // איפוס אחרי פינוי
+
+    return frame;
 }
+
 
 
 
@@ -176,10 +182,10 @@ EvictionCandidate evict_best_frame(uint64_t page_to_insert,
 //     return candidate;
 // }
 
-// uint64_t perform_eviction(const EvictionCandidate& candidate,
-//                           const uint64_t page_of[]) {
-//     if (candidate.frame == 0) return 0;
-//     PMevict(candidate.frame, page_of[candidate.frame]);
-//     PMwrite(candidate.parent * PAGE_SIZE + candidate.index_in_parent, 0);
-//     return candidate.frame;
-// }
+uint64_t perform_eviction(const EvictionCandidate& candidate,
+                          const uint64_t page_of[]) {
+    if (candidate.frame == 0) return 0;
+    PMevict(candidate.frame, page_of[candidate.frame]);
+    PMwrite(candidate.parent * PAGE_SIZE + candidate.index_in_parent, 0);
+    return candidate.frame;
+}
