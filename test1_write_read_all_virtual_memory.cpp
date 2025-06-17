@@ -10,6 +10,7 @@ int main(int argc, char **argv) {
     VMinitialize();
     for (uint64_t i = 0; i < VIRTUAL_MEMORY_SIZE; ++i) {
         VMwrite(i, i);
+        std::cout << "writing to " << i << " value: " << i << std::endl;
     }
 
     for (uint64_t i = 0; i < VIRTUAL_MEMORY_SIZE; ++i) {
