@@ -20,26 +20,29 @@ bool is_leaf_frame(uint64_t frame) {
 
 
 
-uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
-    uint64_t frames_in_tree[NUM_FRAMES];
-    uint64_t parent_of[NUM_FRAMES] = {0};
-    uint64_t page_of[NUM_FRAMES] = {0};
-    uint64_t depth_of[NUM_FRAMES] = {0};
-    uint64_t num_frames_in_tree = 0;
-
-    scan_tree(0, 0, frames_in_tree, num_frames_in_tree, parent_of, page_of, depth_of);
-
+uint64_t find_unused_frame_or_evict(
+    uint64_t page_to_insert,
+    const uint64_t frames_in_tree[],
+    uint64_t num_frames_in_tree,
+    const uint64_t parent_of[],
+    const uint64_t page_of[],
+    const uint64_t depth_of[]) 
+{
     int free = find_free_frame(frames_in_tree, num_frames_in_tree);
     if (free != 0) return free;
 
     int next = find_next_unused_frame(frames_in_tree, num_frames_in_tree);
     if (next != 0) return next;
 
-    EvictionCandidate candidate = evict_best_frame(page_to_insert, frames_in_tree, num_frames_in_tree,
-                                                parent_of, page_of, depth_of);
-    return candidate.frame;  // מחזיר את המסגרת בלבד
-
+    EvictionCandidate candidate = evict_best_frame(page_to_insert,
+                                                   frames_in_tree,
+                                                   num_frames_in_tree,
+                                                   parent_of,
+                                                   page_of,
+                                                   depth_of);
+    return candidate.frame;
 }
+
 
 
 int find_free_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree) {
