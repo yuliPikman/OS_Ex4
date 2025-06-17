@@ -1,5 +1,6 @@
 #include "FrameUtils.h"
 #include "TreeUtils.h"
+#include "PageUtils.h"
 #include <iostream>
 
 
@@ -34,8 +35,10 @@ uint64_t find_unused_frame_or_evict(uint64_t page_to_insert) {
     int next = find_next_unused_frame(frames_in_tree, num_frames_in_tree);
     if (next != 0) return next;
 
-    return evict_best_frame(page_to_insert, frames_in_tree, num_frames_in_tree,
-                            parent_of, page_of, depth_of);
+    EvictionCandidate candidate = evict_best_frame(page_to_insert, frames_in_tree, num_frames_in_tree,
+                                                parent_of, page_of, depth_of);
+    return candidate.frame;  // מחזיר את המסגרת בלבד
+
 }
 
 
@@ -72,51 +75,56 @@ int find_next_unused_frame(const uint64_t frames_in_tree[], uint64_t num_frames_
 
 
 void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
-                            uint64_t& max_distance, uint64_t& frame_to_evict,
-                            uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent) {
-    uint64_t page = get_page_number_from_frame_with_map(frame);
+                               uint64_t& max_distance, uint64_t& frame_to_evict,
+                               uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent,
+                               const uint64_t parent_of[]) {
+    uint64_t page = get_page_number_from_frame_with_map(frame, parent_of);
 
-    uint64_t diff = (page_to_insert > page) ? (page_to_insert - page) : (page - page_to_insert);
-    uint64_t distance = (NUM_PAGES - diff < diff) ? (NUM_PAGES - diff) : diff;
+    uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
+    uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
 
     if (distance > max_distance) {
         max_distance = distance;
         frame_to_evict = frame;
 
-        auto parent_index = find_parent_and_index(frame);
-        parent_frame_of_candidate = parent_index.first;
-        index_in_parent = parent_index.second;
+        parent_frame_of_candidate = parent_of[frame];
+        index_in_parent = get_index_in_parent(parent_frame_of_candidate, frame);
     }
 }
 
+
+
 EvictionCandidate evict_best_frame(uint64_t page_to_insert,
+                                   const uint64_t frames_in_tree[],
+                                   uint64_t num_frames_in_tree,
+                                   const uint64_t parent_of[],
+                                   const uint64_t page_of[],
                                    const uint64_t depth_of[]) {
     uint64_t max_distance = 0;
     uint64_t frame_to_evict = 0;
     uint64_t parent_frame_of_candidate = 0;
     uint64_t index_in_parent = 0;
 
-    for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
-        if (depth_of[i] == TABLES_DEPTH) {  // רק עלים
-            update_distance_for_evict(i, page_to_insert,
+    for (uint64_t i = 0; i < num_frames_in_tree; ++i) {
+        uint64_t frame = frames_in_tree[i];
+        if (depth_of[frame] == TABLES_DEPTH) {
+            std::cout << "Entering func update_distance_for_evict " << std::endl;
+            update_distance_for_evict(frame, page_to_insert,
                                       max_distance, frame_to_evict,
-                                      parent_frame_of_candidate, index_in_parent);
+                                      parent_frame_of_candidate, index_in_parent,
+                                      parent_of);
         }
     }
 
     if (frame_to_evict == 0 || parent_frame_of_candidate == 0) {
         std::cerr << "[ERROR] No frame found for eviction!" << std::endl;
-        exit(1);  // או טיפול תקני אחר
+        exit(1);
     }
 
-    EvictionCandidate candidate = {
-        frame_to_evict,
-        parent_frame_of_candidate,
-        index_in_parent
-    };
-
-    return candidate;
+    return {frame_to_evict, parent_frame_of_candidate, index_in_parent};
 }
+
+
 
 
 

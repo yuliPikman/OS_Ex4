@@ -15,10 +15,6 @@ bool is_leaf_frame(uint64_t frame);
 
 uint64_t find_unused_frame_or_evict(uint64_t page_to_insert);
 
-void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
-                            uint64_t& max_distance, uint64_t& frame_to_evict,
-                            uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent);
-
 
 int find_free_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree);
 
@@ -26,7 +22,7 @@ int find_free_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree
 int find_next_unused_frame(const uint64_t frames_in_tree[], uint64_t num_frames_in_tree);
 
 
-uint64_t evict_best_frame(uint64_t page_to_insert,
+EvictionCandidate evict_best_frame(uint64_t page_to_insert,
                           const uint64_t frames_in_tree[],
                           uint64_t num_frames_in_tree,
                           const uint64_t parent_of[],
@@ -43,3 +39,9 @@ EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
 
 uint64_t perform_eviction(const EvictionCandidate& candidate,
                           const uint64_t page_of[]);
+
+
+void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
+                                uint64_t& max_distance, uint64_t& frame_to_evict,
+                                uint64_t& parent_frame_of_candidate, uint64_t& index_in_parent,
+                                const uint64_t parent_of[]);
