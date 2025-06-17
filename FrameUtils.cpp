@@ -90,6 +90,7 @@ void update_distance_for_evict(uint64_t frame, uint64_t page_to_insert,
         parent_frame_of_candidate = parent_of[frame];
         index_in_parent = get_index_in_parent(parent_frame_of_candidate, frame);
     }
+    std::cout<< "Frame to evict in update_distance_for_evict (before) is now: " << frame_to_evict << std::endl;
 }
 
 
@@ -108,11 +109,11 @@ EvictionCandidate evict_best_frame(uint64_t page_to_insert,
     for (uint64_t i = 0; i < num_frames_in_tree; ++i) {
         uint64_t frame = frames_in_tree[i];
         if (depth_of[frame] == TABLES_DEPTH) {
-            std::cout << "Entering func update_distance_for_evict " << std::endl;
             update_distance_for_evict(frame, page_to_insert,
                                       max_distance, frame_to_evict,
                                       parent_frame_of_candidate, index_in_parent,
                                       parent_of);
+            std::cout<< "Frame to evict in evict_best_frame (after) is now: " << frame_to_evict << std::endl;
         }
     }
 
@@ -128,46 +129,46 @@ EvictionCandidate evict_best_frame(uint64_t page_to_insert,
 
 
 
-EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
-                                           const uint64_t parent_of[],
-                                           const uint64_t page_of[],
-                                           const uint64_t depth_of[]) {
-    uint64_t max_distance = 0;
-    EvictionCandidate candidate = {0, 0, 0};
+// EvictionCandidate find_best_frame_to_evict(uint64_t page_to_insert,
+//                                            const uint64_t parent_of[],
+//                                            const uint64_t page_of[],
+//                                            const uint64_t depth_of[]) {
+//     uint64_t max_distance = 0;
+//     EvictionCandidate candidate = {0, 0, 0};
 
-    for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
-        if (depth_of[i] == TABLES_DEPTH) {
-            uint64_t page = page_of[i];
-            uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
-            uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
+//     for (uint64_t i = 1; i < NUM_FRAMES; ++i) {
+//         if (depth_of[i] == TABLES_DEPTH) {
+//             uint64_t page = page_of[i];
+//             uint64_t diff = (page > page_to_insert) ? (page - page_to_insert) : (page_to_insert - page);
+//             uint64_t distance = (diff < NUM_PAGES - diff) ? diff : (NUM_PAGES - diff);
 
-            if (distance > max_distance) {
-                max_distance = distance;
-                candidate.frame = i;
-                candidate.parent = parent_of[i];
-            }
-        }
-    }
+//             if (distance > max_distance) {
+//                 max_distance = distance;
+//                 candidate.frame = i;
+//                 candidate.parent = parent_of[i];
+//             }
+//         }
+//     }
 
-    if (candidate.frame != 0 && candidate.parent != 0) {
-        for (uint64_t j = 0; j < PAGE_SIZE; ++j) {
-            word_t val;
-            PMread(candidate.parent * PAGE_SIZE + j, &val);
-            if ((uint64_t)val == candidate.frame) {
-                candidate.index_in_parent = j;
-                break;
-            }
-        }
-    }
+//     if (candidate.frame != 0 && candidate.parent != 0) {
+//         for (uint64_t j = 0; j < PAGE_SIZE; ++j) {
+//             word_t val;
+//             PMread(candidate.parent * PAGE_SIZE + j, &val);
+//             if ((uint64_t)val == candidate.frame) {
+//                 candidate.index_in_parent = j;
+//                 break;
+//             }
+//         }
+//     }
     
 
-    return candidate;
-}
+//     return candidate;
+// }
 
-uint64_t perform_eviction(const EvictionCandidate& candidate,
-                          const uint64_t page_of[]) {
-    if (candidate.frame == 0) return 0;
-    PMevict(candidate.frame, page_of[candidate.frame]);
-    PMwrite(candidate.parent * PAGE_SIZE + candidate.index_in_parent, 0);
-    return candidate.frame;
-}
+// uint64_t perform_eviction(const EvictionCandidate& candidate,
+//                           const uint64_t page_of[]) {
+//     if (candidate.frame == 0) return 0;
+//     PMevict(candidate.frame, page_of[candidate.frame]);
+//     PMwrite(candidate.parent * PAGE_SIZE + candidate.index_in_parent, 0);
+//     return candidate.frame;
+// }
